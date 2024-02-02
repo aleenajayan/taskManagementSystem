@@ -5,12 +5,14 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from model import *
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_mail import Mail, Message
+from email.mime.text import MIMEText
 
 app = Flask(__name__)
-# app.config['SECRET_KEY'] = 'task'
+
 connection = psycopg2.connect(**db_params)
 cursor = connection.cursor()
-
 
 #____________________________________View Task by Student_______________________________________________
    
@@ -47,66 +49,71 @@ def delete_task(submissionid):
 def task_list(studentid):
     return tasklist_view(studentid)
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+#_______________________________send mail by type____________________________________________________________
 
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = 'tarentotask@gmail.com'
+app.config['MAIL_PASSWORD'] = 'upok lnov qiri nbjs'
+app.config['MAIL_DEFAULT_SENDER'] = 'tarentotask@gmail.com'
 
+mail = Mail(app)
 
-
-
-
-
-
-
-
-# @app.route('/api/update_uploaded_file/<string:submissionid>', methods=['POST'])
-# def update_uploaded_file():
-#     try:
-#         file = request.files['file']
-#         file.save('temp_file')
-#         classno = request.form['classno']
-#         teacherid = request.form['teacherid']
-#         studentid = request.form['studentid']
-#         taskid = request.form['taskid']
-#         submissionid = request.form['submissionid']
-
-#         folder_id = '1UiuN6RWsgLSvBJOFhCHGwyV5f5fOirks'
-
-#         file_url = upload_to_google_drive('temp_file', file.filename, folder_id)
-#         update_task_submission_url_in_database(submissionid, file_url, classno, teacherid, studentid, taskid)
-
-#         return jsonify({'message': 'File updated successfully', 'file_url': file_url})
-#     except Exception as e:
-#         return jsonify({'error': str(e)})
+@app.route('/api/email/<string:type>', methods=['POST'])
+def send_email(type):
+    try:         
+       data = request.get_json()
+       subject = data['subject']
+       body = data['message_body']
+   
+       fetch_emails_query = "SELECT email FROM login WHERE type = %s"
+       cursor.execute(fetch_emails_query, (type,))
+       emails = cursor.fetchall()
+       
+       if not emails:
+               return jsonify({'error': 'No emails found for the specified user type'})
+   
+        
+       for email in emails:
+          recipient_email = email[0]
+          message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
+          message.body = body
+          mail.send(message)
+          return jsonify({'message': 'Email sent successfully!'})
+          
+    except Exception as e:
+        return jsonify(f'Error sending email: {str(e)}', 'error')  
     
-# @app.route('/api/add_tasksubmission', methods=['POST'])
-# def add_tasksubmission():
-#     try:
+
+#_____________________________mail forgot password____________________________  
+
+# if __name__ == '__main__':
+#     app.run(debug=True, port=5001)
+    
+      
+#      Collect data from the request JSON
 #         data = request.get_json()
+#         subject = data['subject']
+#         body = data['message_body']
 
-#         insert_query = """
-#         INSERT INTO public.tasksubmission(file, score, classno, teacherid, studentid, taskid)
-# 	    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
-#         """
-#         cursor.execute(insert_query, (
-#             data['file'],
-#             data['score'],
-#             data['remarks'],
-#             data['doubt'],
-#             data['classno'],
-#             data['teacherid'],
-#             data['studentid'],
-#             data['taskid']
-#         ))
+#         # Fetch all emails based on the user type from the login table
+#         fetch_emails_query = "SELECT email FROM login WHERE type = %s"
+#         cursor.execute(fetch_emails_query, (type,))
+#         emails = cursor.fetchall()
 
+#         if not emails:
+#             return jsonify({'error': 'No emails found for the specified user type'})
 
+#         # Send emails to each email address
+#         for email in emails:
+#             recipient_email = email[0]
+
+#             # Create a Flask-Mail Message object
+#             message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
+#             message.body = body
+
+#             # Send the email
+#             mail.send(message)
 #         connection.commit()
-#         # cursor.close()
-#         # connection.close()
-
-#         return jsonify({'message': 'tasksubmission added successfully!'})
-#     except Exception as e:
-#         connection.rollback()
-#         return jsonify({'error': str(e)})
-    
-

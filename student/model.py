@@ -14,6 +14,8 @@ from datetime import datetime
 connection = psycopg2.connect(**db_params)
 cursor = connection.cursor()
 
+
+
 #____________________________________View Task by Student_______________________________________________
 def view_task(classno):
     try:
@@ -216,24 +218,6 @@ def task_updation(submissionid):
     except Exception as e:
         return jsonify({'error': str(e)})
 
-   
-def extract_file_id(file_url):
-    parsed_url = urlparse(file_url)
-    query_params = parse_qs(parsed_url.query)
-    return query_params.get('id', [None])[0]
-
-def delete_file(file_id):
-    try:
-        # Build the Google Drive API service
-        drive_service = build('drive', 'v3', credentials=drive_credentials)
-        # Delete the file by ID
-        drive_service.files().delete(fileId=file_id).execute()
-
-        return {'message': 'File deleted successfully'}
-
-    except Exception as e:
-        return {'error': str(e)} 
-  
 
 #________________________________delete submitted task by students_____________________________________________
 
@@ -274,24 +258,7 @@ def task_deletion(submissionid):
     except Exception as e:
         return jsonify({'error': str(e)})
 
-   
-def extract_file_id(file_url):
-    parsed_url = urlparse(file_url)
-    query_params = parse_qs(parsed_url.query)
-    return query_params.get('id', [None])[0]
-
-def delete_file(file_id):
-    try:
-        # Build the Google Drive API service
-        drive_service = build('drive', 'v3', credentials=drive_credentials)
-        # Delete the file by ID
-        drive_service.files().delete(fileId=file_id).execute()
-
-        return {'message': 'File deleted successfully'}
-
-    except Exception as e:
-        return {'error': str(e)} 
-    
+#_______________________________task priority list____________________________________________________________
 
     
 from datetime import datetime
@@ -339,6 +306,40 @@ def tasklist_view(student_id):
         ]
 
         return jsonify({'tasks': tasks_data})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+
+#_________________________________mail send by type_______________
+def send_email():
+    try:
+        # Collect data from the request JSON
+        data = request.get_json()
+        student_email = data['student_email']
+        subject = data['subject']
+        body = data['message_body']
+        user_type = data['type']  # Assuming 'type' is the parameter indicating the user type
+
+        # Fetch all emails based on the user type from the login table
+        fetch_emails_query = "SELECT email FROM login WHERE type = %s"
+        cursor.execute(fetch_emails_query, (user_type,))
+        emails = cursor.fetchall()
+
+        if not emails:
+            return jsonify({'error': 'No emails found for the specified user type'})
+
+        # Send emails to each email address
+        for email in emails:
+            recipient_email = email[0]
+
+            # Create a Flask-Mail Message object
+            message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
+            message.body = body
+
+            # Send the email
+            mail.send(message)
+
+        return jsonify({'message': 'Emails sent successfully'})
     except Exception as e:
         return jsonify({'error': str(e)})
 
