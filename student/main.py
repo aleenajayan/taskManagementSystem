@@ -88,32 +88,30 @@ def send_email(type):
     
 
 #_____________________________mail forgot password____________________________  
-
-# if __name__ == '__main__':
-#     app.run(debug=True, port=5001)
+@app.route('/api/email/forgotpassword', methods=['POST'])
+def forgot_password():
+    try:
+       data = request.get_json()
+       email = data['email']
+       subject = 'Forget Password' 
+       body = 'Click is this link to change your password'
+       
+       query ="SELECT username, password FROM login WHERE email=%s"
+       cursor.execute(query, (email,))
+       data = cursor.fetchall()
+       
+       if not data :
+           return jsonify({'error': 'Give the registered email id'})
+       else:
+          recipient_email = email
+          message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
+          message.body = body
+          mail.send(message)
+          return jsonify({'message': 'Email sent successfully!'})
+               
+    except Exception as e:
+        return jsonify(f'Error sending email: {str(e)}', 'error') 
     
-      
-#      Collect data from the request JSON
-#         data = request.get_json()
-#         subject = data['subject']
-#         body = data['message_body']
 
-#         # Fetch all emails based on the user type from the login table
-#         fetch_emails_query = "SELECT email FROM login WHERE type = %s"
-#         cursor.execute(fetch_emails_query, (type,))
-#         emails = cursor.fetchall()
-
-#         if not emails:
-#             return jsonify({'error': 'No emails found for the specified user type'})
-
-#         # Send emails to each email address
-#         for email in emails:
-#             recipient_email = email[0]
-
-#             # Create a Flask-Mail Message object
-#             message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
-#             message.body = body
-
-#             # Send the email
-#             mail.send(message)
-#         connection.commit()
+if __name__ == '__main__':
+    app.run(debug=True, port=5001)
