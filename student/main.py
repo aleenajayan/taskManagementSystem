@@ -49,7 +49,7 @@ def delete_task(submissionid):
 def task_list(studentid):
     return tasklist_view(studentid)
 
-#__________________________________________studentchat section___________________________________
+#__________________________________________student chat section_______________________________________________
 
 @app.route('/api/student/task/chat/<string:senderid>', methods=['GET', 'POST'])
 def chat(senderid):
@@ -70,9 +70,86 @@ def chat(senderid):
 
             if 'message' not in data or not data['message']:
                 return jsonify({'error': 'Please provide non-empty content in the request data.'}), 400
+            
+            sendertype= 'student'
 
-            query = "INSERT INTO chat (senderid, receiverid, taskid, content) VALUES (%s, %s, %s, %s);"
-            cursor.execute(query, (senderid, teacherid[0], data['taskid'] ,data['message']))
+            query = "INSERT INTO chat (senderid, receiverid, taskid, content, sendertype) VALUES (%s, %s, %s, %s, %s);"
+            cursor.execute(query, (senderid, teacherid[0], data['taskid'] ,data['message'],sendertype))
+            connection.commit()
+            print("_____________________",query)
+
+            return jsonify({'message': 'Chat added successfully!'})
+
+        except Exception as e:
+            print(f"Error: {e}")
+            connection.rollback()
+            return jsonify({'error': 'Internal Server Error'}), 500
+    else:
+        data = request.get_json()
+        if 'taskid' not in data:
+            return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+
+        fetch_teacher_query = "SELECT teacherid FROM task WHERE taskid = %s;"
+        cursor.execute(fetch_teacher_query, (data['taskid'],))
+        teacherid = cursor.fetchone()
+
+        if not teacherid:
+            return jsonify({'error': 'Invalid taskid'}), 400
+
+        query = """
+            SELECT 
+                c.content, 
+                c.timestamp, 
+                CASE 
+                    WHEN c.sendertype = 'student' THEN s.name 
+                    WHEN c.sendertype = 'teacher' THEN t.name 
+                END AS sender_name
+            FROM chat c
+            LEFT JOIN student s ON c.senderid = s.studentid AND c.sendertype = 'student'
+            LEFT JOIN teacher t ON c.senderid = t.teacherid AND c.sendertype = 'teacher'
+            WHERE (c.senderid = %s AND c.receiverid = %s)
+            OR (c.senderid = %s AND c.receiverid = %s)
+            ORDER BY c.timestamp;
+        """
+
+        # Print the query for debugging
+        print("____query_____", query)
+
+        # Correct the number of parameters in the execute method
+        cursor.execute(
+            query,
+            (senderid, teacherid[0], senderid, teacherid[0])
+        )
+
+        chat_history = cursor.fetchall()
+
+        # Replace the following line with your HTML rendering logic
+        return jsonify({'chat_history': chat_history})
+
+#__________________________________________teacher chat section_______________________________________________
+@app.route('/api/teacher/task/chat/<string:senderid>', methods=['GET', 'POST'])
+def chatteacher(senderid):
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            print("_________",data)
+
+            if 'taskid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+            # fetch_teacher_query = "SELECT classno FROM task WHERE taskid = %s;"
+            # cursor.execute(fetch_teacher_query, (data['taskid'],))
+            # classno = cursor.fetchone()
+            
+            if 'studentid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+            
+            if 'message' not in data or not data['message']:
+                return jsonify({'error': 'Please provide non-empty content in the request data.'}), 400
+            
+            sendertype= 'teacher'
+
+            query = "INSERT INTO chat (senderid, receiverid, taskid, content, sendertype) VALUES (%s, %s, %s, %s,%s);"
+            cursor.execute(query, (senderid, data['studentid'], data['taskid'] ,data['message'],sendertype))
             connection.commit()
             print("_____________________",query)
 
@@ -90,19 +167,22 @@ def chat(senderid):
             if 'taskid' not in data:
                 return jsonify({'error': 'Please provide taskid in the request data.'}), 400
 
-            fetch_teacher_query = "SELECT teacherid FROM task WHERE taskid = %s;"
-            cursor.execute(fetch_teacher_query, (data['taskid'],))
-            teacherid = cursor.fetchone()
-
-            if not teacherid:
-                return jsonify({'error': 'Invalid taskid'}), 400
+            teacherid = senderid
 
             query = """
-                SELECT senderid, content, timestamp
-                FROM chat
-                WHERE (senderid = %s AND receiverid = %s)
-                   OR (senderid = %s AND receiverid = %s)
-                ORDER BY timestamp;
+               SELECT 
+                c.content, 
+                c.timestamp, 
+                CASE 
+                    WHEN c.sendertype = 'student' THEN s.name 
+                    WHEN c.sendertype = 'teacher' THEN t.name 
+                END AS sender_name
+            FROM chat c
+            LEFT JOIN student s ON c.senderid = s.studentid AND c.sendertype = 'student'
+            LEFT JOIN teacher t ON c.senderid = t.teacherid AND c.sendertype = 'teacher'
+            WHERE (c.senderid = %s AND c.receiverid = %s)
+            OR (c.senderid = %s AND c.receiverid = %s)
+            ORDER BY c.timestamp;
             """
             cursor.execute(query, (senderid, teacherid, teacherid, senderid))
             chat_history = cursor.fetchall()
@@ -113,8 +193,16 @@ def chat(senderid):
         except Exception as e:
             print(f"Error: {e}")
             return jsonify({'error': 'Internal Server Error'}), 500
- 
 
+#__________________________________________teacher upload file_______________________________________________
+@app.route('/api/teacher/task/<string:teacherid>', methods=['POST', 'GET'])
+def task(teacherid):
+    return add_task(teacherid)
+
+#_____________________________________update file by teacher________________________________________
+@app.route('/api/teacher/task/updatingTask/<string:taskid>')
+def updatingTask(taskid):
+    return updateTask(taskid)
 #_______________________________send mail by type____________________________________________________________
 
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'

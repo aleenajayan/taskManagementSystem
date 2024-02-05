@@ -310,6 +310,133 @@ def tasklist_view(student_id):
         return jsonify({'error': str(e)})
 
 
+
+#____________________upload file by teacher__________________________
+# drive_credentials = service_account.Credentials.from_service_account_file('credentials.json', scopes=['https://www.googleapis.com/auth/drive.file'])
+def add_task(teacherid):
+    if request.method == 'POST':
+        try:
+            file = request.files['file']
+            print("______________________________________",file)
+            file.save('temp_file')
+            duedate = request.form['duedate']
+            question = request.form['question']
+            classNo = request.form['classNo']
+            folder_id = '1UiuN6RWsgLSvBJOFhCHGwyV5f5fOirks'
+            
+            if not duedate:
+                return jsonify({'error': 'Due date is required.'}), 400
+ 
+            if not question and not file:
+                return jsonify({'error': 'Either "question" or "file" is required.'}), 400
+ 
+            if not classNo:
+                return jsonify({'error': 'Class number is required.'}), 400
+ 
+            file_url = upload_to_google_drive('temp_file', file.filename, folder_id)
+            print("___________________",file_url)
+ 
+            insert_query = """
+            INSERT INTO task(duedate, question, classNo, teacherid,file)
+            VALUES (%(duedate)s, %(question)s, %(classNo)s, %(teacherid)s,%(file)s);
+            """
+            if file and question:
+                cursor.execute(insert_query, {
+                    'duedate': duedate,
+                    'question': question,
+                    'classNo': classNo,
+                    'teacherid': teacherid,
+                    'file': file_url
+                })
+ 
+                connection.commit()
+                return jsonify({'message': 'Task added successfully!'})
+ 
+            elif file and not question:
+                cursor.execute(insert_query, {
+                    'duedate': duedate,
+                    'question': "Nill",
+                    'classNo': classNo,
+                    'teacherid': teacherid,
+                    'file': file_url
+                })
+ 
+                connection.commit()
+                return jsonify({'message': 'Task added successfully!'})
+            else:
+                cursor.execute(insert_query, {
+                    'duedate': duedate,
+                    'question': question,
+                    'classNo': classNo,
+                    'teacherid': teacherid,
+                    'file': "Nill"
+                })
+ 
+                connection.commit()
+                return jsonify({'message': 'Task added successfully!'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    elif request.method == 'GET':
+        try:
+            select_query = """
+            SELECT * FROM task WHERE teacherid = %s;
+            """
+            cursor.execute(select_query, (teacherid,))
+            tasks = cursor.fetchall()
+            task_list = [{'duedate': row[2], 'question': row[3], 'classNo': row[4], 'teacherid': row[1] ,'file': row[5] } for row in tasks]
+ 
+            return jsonify({'tasks': task_list})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+ 
+#_____________________________________________delete task by teacher______________________________________
+def updateTask(taskid):
+    try:
+        # Fetch the existing task data
+        cursor.execute('SELECT * FROM task WHERE taskid = %s', (taskid,))
+        task = cursor.fetchone()
+ 
+        if task is None:
+            return jsonify({'message': 'Task not found'}), 404
+ 
+        # Check if the request contains form data
+        if request.form:
+            form_data_dict = dict(request.form)
+ 
+            # If 'file' is present in form data, handle file update
+            if 'file' in form_data_dict:
+                existing_file_id = extract_file_id(task[5])
+ 
+                # Delete the existing file from Google Drive
+                if existing_file_id:
+                    result = delete_file(existing_file_id)
+                    print("_______deleted__________",result)
+ 
+                # Upload the new file to Google Drive
+                file = request.files['file']
+                file.save('temp_file')
+                folder_id = '1UiuN6RWsgLSvBJOFhCHGwyV5f5fOirks'
+                file_url = upload_to_google_drive('temp_file', file.filename, folder_id)
+ 
+                # Update the task table with the new file URLS
+                form_data_dict['file'] = file_url
+                
+ 
+            # Update other fields
+            updated_fields = []
+            for key, value in form_data_dict.items():
+                cursor.execute(f'UPDATE task SET {key} = %s WHERE taskid = %s', (value, taskid))
+                updated_fields.append(key)
+ 
+            connection.commit()
+            return jsonify({'message': 'Task data updated successfully', 'updated_fields': updated_fields})
+ 
+        # If no form data is present in the request
+        else:
+            return jsonify({'message': 'No data provided in the request'}), 400
+ 
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 # #_________________________________mail send by type_______________
 # def send_email():
 #     try:
