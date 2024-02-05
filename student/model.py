@@ -14,6 +14,8 @@ from datetime import datetime
 connection = psycopg2.connect(**db_params)
 cursor = connection.cursor()
 
+
+
 #____________________________________View Task by Student_______________________________________________
 def view_task(classno):
     try:
@@ -90,7 +92,7 @@ def upload_to_google_drive(file_path, file_name, folder_id):
         return file.get('webContentLink')
     except Exception as e:
         return str(e)
-    
+  
 def task_submission(taskid):
     try:
         file = request.files['file']
@@ -216,24 +218,6 @@ def task_updation(submissionid):
     except Exception as e:
         return jsonify({'error': str(e)})
 
-   
-def extract_file_id(file_url):
-    parsed_url = urlparse(file_url)
-    query_params = parse_qs(parsed_url.query)
-    return query_params.get('id', [None])[0]
-
-def delete_file(file_id):
-    try:
-        # Build the Google Drive API service
-        drive_service = build('drive', 'v3', credentials=drive_credentials)
-        # Delete the file by ID
-        drive_service.files().delete(fileId=file_id).execute()
-
-        return {'message': 'File deleted successfully'}
-
-    except Exception as e:
-        return {'error': str(e)} 
-  
 
 #________________________________delete submitted task by students_____________________________________________
 
@@ -274,24 +258,7 @@ def task_deletion(submissionid):
     except Exception as e:
         return jsonify({'error': str(e)})
 
-   
-def extract_file_id(file_url):
-    parsed_url = urlparse(file_url)
-    query_params = parse_qs(parsed_url.query)
-    return query_params.get('id', [None])[0]
-
-def delete_file(file_id):
-    try:
-        # Build the Google Drive API service
-        drive_service = build('drive', 'v3', credentials=drive_credentials)
-        # Delete the file by ID
-        drive_service.files().delete(fileId=file_id).execute()
-
-        return {'message': 'File deleted successfully'}
-
-    except Exception as e:
-        return {'error': str(e)} 
-    
+#_______________________________task priority list____________________________________________________________
 
     
 from datetime import datetime
@@ -340,49 +307,235 @@ def tasklist_view(student_id):
 
         return jsonify({'tasks': tasks_data})
     except Exception as e:
-        return jsonify({'error': str(e)})
+        return jsonify({'error': str(e)}) 
+#__________________________________________student chat section_______________________________________________
 
-# def tasklist_view(student_id):
-#     try:
-#         # Fetch the classno from the student table using studentid
-#         select_classno_query = "SELECT classno FROM student WHERE studentid = %s"
-#         cursor.execute(select_classno_query, (student_id,))
-#         classno = cursor.fetchone()
 
-#         if not classno:
-#             return jsonify({'error': 'Student not found'})
+def chat(senderid):
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            print("_________",data)
 
-#         classno = classno[0]
+            if 'taskid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
 
-#         # Get the current date and time
-#         current_date = datetime.now()
+            fetch_teacher_query = "SELECT teacherid FROM task WHERE taskid = %s;"
+            cursor.execute(fetch_teacher_query, (data['taskid'],))
+            teacherid = cursor.fetchone()
 
-#         # Query to fetch tasks excluding those already submitted by the student
-#         select_query = """
-#         SELECT t.duedate, t.question, te.name
-#         FROM task t
-#         JOIN teacher te ON t.teacherid = te.teacherid
-#         WHERE t.classno = %s
-#         AND t.duedate >= %s
-#         AND NOT EXISTS (
-#             SELECT 1
-#             FROM tasksubmission ts
-#             WHERE ts.taskid = t.taskid
-#             AND ts.studentid = %s
-#         );
-#         """
-#         cursor.execute(select_query, (classno, current_date, student_id))
-#         tasks = cursor.fetchall()
+            if not teacherid:
+                return jsonify({'error': 'Invalid taskid'}), 400
+            if 'message' not in data or not data['message'].strip():  # Check for non-empty content
+                return jsonify({'error': 'Please provide non-empty content in the request data.'}), 400
+            
+            sendertype= 'student'
 
-#         tasks_data = [
-#             {
-#                 'duedate': task[0],
-#                 'question': task[1],
-#                 'teachername': task[2]
-#             }
-#             for task in tasks
-#         ]
+            query = "INSERT INTO chat (senderid, receiverid, taskid, content, sendertype) VALUES (%s, %s, %s, %s, %s);"
+            cursor.execute(query, (senderid, teacherid[0], data['taskid'] ,data['message'],sendertype))
+            connection.commit()
+            print("_____________________",query)
 
-#         return jsonify({'tasks': tasks_data})
-#     except Exception as e:
-#         return jsonify({'error': str(e)})
+            return jsonify({'message': 'Chat added successfully!'})
+
+        except Exception as e:
+            print(f"Error: {e}")
+            connection.rollback()
+            return jsonify({'error': 'Internal Server Error'}), 500
+    else:
+        data = request.get_json()
+        if 'taskid' not in data:
+            return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+
+        fetch_teacher_query = "SELECT teacherid FROM task WHERE taskid = %s;"
+        cursor.execute(fetch_teacher_query, (data['taskid'],))
+        teacherid = cursor.fetchone()
+
+        if not teacherid:
+            return jsonify({'error': 'Invalid taskid'}), 400
+
+        query = """
+            SELECT 
+                c.content, 
+                c.timestamp, 
+                CASE 
+                    WHEN c.sendertype = 'student' THEN s.name 
+                    WHEN c.sendertype = 'teacher' THEN t.name 
+                END AS sender_name
+            FROM chat c
+            LEFT JOIN student s ON c.senderid = s.studentid AND c.sendertype = 'student'
+            LEFT JOIN teacher t ON c.senderid = t.teacherid AND c.sendertype = 'teacher'
+            WHERE (c.senderid = %s AND c.receiverid = %s)
+            OR (c.senderid = %s AND c.receiverid = %s)
+            ORDER BY c.timestamp;
+        """
+
+        # Print the query for debugging
+        print("____query_____", query)
+
+        # Correct the number of parameters in the execute method
+        cursor.execute(
+            query,
+            (senderid, teacherid[0], senderid, teacherid[0])
+        )
+
+        chat_history = cursor.fetchall()
+
+        # Replace the following line with your HTML rendering logic
+        return jsonify({'chat_history': chat_history})
+
+#__________________________________________teacher chat section_______________________________________________
+
+
+def chatteacher(senderid):
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            print("_________",data)
+
+            if 'taskid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+            # fetch_teacher_query = "SELECT classno FROM task WHERE taskid = %s;"
+            # cursor.execute(fetch_teacher_query, (data['taskid'],))
+            # classno = cursor.fetchone()
+            
+            if 'studentid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+            
+            if 'message' not in data or not data['message'].strip():  # Check for non-empty content
+                return jsonify({'error': 'Please provide non-empty content in the request data.'}), 400
+            
+            sendertype= 'teacher'
+
+            query = "INSERT INTO chat (senderid, receiverid, taskid, content, sendertype) VALUES (%s, %s, %s, %s,%s);"
+            cursor.execute(query, (senderid, data['studentid'], data['taskid'] ,data['message'],sendertype))
+            connection.commit()
+            print("_____________________",query)
+
+            return jsonify({'message': 'Chat added successfully!'})
+
+        except Exception as e:
+            print(f"Error: {e}")
+            connection.rollback()
+            return jsonify({'error': 'Internal Server Error'}), 500
+    else:
+        try:
+            data = request.get_json()
+            # if 'receiverid' not in data:
+            #     return jsonify({'error': 'Please provide receiver_id in the request data.'}), 400
+            if 'taskid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+
+            teacherid = senderid
+
+            query = """
+               SELECT 
+                c.content, 
+                c.timestamp, 
+                CASE 
+                    WHEN c.sendertype = 'student' THEN s.name 
+                    WHEN c.sendertype = 'teacher' THEN t.name 
+                END AS sender_name
+            FROM chat c
+            LEFT JOIN student s ON c.senderid = s.studentid AND c.sendertype = 'student'
+            LEFT JOIN teacher t ON c.senderid = t.teacherid AND c.sendertype = 'teacher'
+            WHERE (c.senderid = %s AND c.receiverid = %s)
+            OR (c.senderid = %s AND c.receiverid = %s)
+            ORDER BY c.timestamp;
+            """
+            cursor.execute(query, (senderid, teacherid, teacherid, senderid))
+            chat_history = cursor.fetchall()
+
+            # Replace the following line with your HTML rendering logic
+            return jsonify({'chat_history': chat_history})
+
+        except Exception as e:
+            print(f"Error: {e}")
+            return jsonify({'error': 'Internal Server Error'}), 500
+        
+#_______________________________send mail by type____________________________________________________________
+from flask import Flask, request, jsonify
+from flask_mail import Mail, Message
+
+app = Flask(__name__)
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = 'tarentotask@gmail.com'
+app.config['MAIL_PASSWORD'] = 'upok lnov qiri nbjs'
+app.config['MAIL_DEFAULT_SENDER'] = 'tarentotask@gmail.com'
+
+mail = Mail(app)
+
+def send_email(type):
+    try:         
+       data = request.get_json()
+       subject = data['subject']
+       body = data['message_body']
+   
+       fetch_emails_query = "SELECT email FROM login WHERE type = %s"
+       cursor.execute(fetch_emails_query, (type,))
+       emails = cursor.fetchall()
+       
+       if not emails:
+               return jsonify({'error': 'No emails found for the specified user type'})
+   
+        
+       for email in emails:
+          recipient_email = email[0]
+          message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
+          message.body = body
+          mail.send(message)
+          return jsonify({'message': 'Email sent successfully!'})
+          
+    except Exception as e:
+         print(f'Error sending email: {str(e)}')
+         return jsonify({'error': 'Failed to send email'}), 500
+#_____________________________mail forgot password____________________________  
+ 
+def forgot_password():
+    try:
+       data = request.get_json()
+       email = data['email']
+       subject = 'Forget Password' 
+       body = 'Click is this link to change your password '
+       
+       if 'email' not in data or not data['email'].strip():
+        return jsonify({'error': 'Email is required and cannot be empty or contain only spaces'})
+ 
+    
+       if '@' not in data['email'] or '.' not in data['email']:
+         return jsonify({'error': 'Invalid email format'})
+     
+       query ="SELECT username, password FROM login WHERE email=%s"
+       cursor.execute(query, (email,))
+       data = cursor.fetchall()
+       
+       if not data :
+           return jsonify({'error': 'Give the registered email id'})
+       else:
+          recipient_email = email
+          message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
+          message.body = body
+          mail.send(message)
+          return jsonify({'message': 'Email sent successfully!'})
+               
+    except Exception as e:
+        return jsonify(f'Error sending email: {str(e)}', 'error') 
+#_________________________link for change password____________________________
+def new_password(email):
+    try:
+        data = request.get_json()
+        new_password = data['new_password']
+        
+        # Update the password in the database
+        update_query = "UPDATE login SET password = %s WHERE email = %s"
+        cursor.execute(update_query, (new_password, email))
+        connection.commit()
+
+        return jsonify({'message': 'Password updated successfully'})
+    except Exception as e:
+        return jsonify({'error': f'Error updating password: {str(e)}'})
+

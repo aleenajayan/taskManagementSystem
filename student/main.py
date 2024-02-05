@@ -5,12 +5,14 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from model import *
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_mail import Mail, Message
+from email.mime.text import MIMEText
 
 app = Flask(__name__)
-# app.config['SECRET_KEY'] = 'task'
+
 connection = psycopg2.connect(**db_params)
 cursor = connection.cursor()
-
 
 #____________________________________View Task by Student_______________________________________________
    
@@ -47,66 +49,31 @@ def delete_task(submissionid):
 def task_list(studentid):
     return tasklist_view(studentid)
 
+#__________________________________________student chat section_______________________________________________
+
+@app.route('/api/student/task/chat/<string:senderid>', methods=['GET', 'POST'])
+def studentchat(senderid):
+  return chat(senderid)
+
+#__________________________________________teacher chat section_______________________________________________
+@app.route('/api/teacher/task/chat/<string:senderid>', methods=['GET', 'POST'])
+def teacherchat(senderid):
+    return chatteacher(senderid)
+
+#_______________________________send mail by type____________________________________________________________
+@app.route('/api/email/<string:type>', methods=['POST'])
+def email_type(type):
+    return send_email(type)    
+#_____________________________mail forgot password_____________________________________________ 
+@app.route('/api/email/forgotpwd', methods=['POST'])
+def password_forgot():
+    return forgot_password()
+    
+#_________________________link for change password____________________________
+@app.route('/api/email/forgotpwd/newpassword/<string:email>', methods=['POST']) 
+def password_new(email):
+    return new_password(email)   
+       
+  
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
-
-
-
-
-
-
-
-
-
-
-# @app.route('/api/update_uploaded_file/<string:submissionid>', methods=['POST'])
-# def update_uploaded_file():
-#     try:
-#         file = request.files['file']
-#         file.save('temp_file')
-#         classno = request.form['classno']
-#         teacherid = request.form['teacherid']
-#         studentid = request.form['studentid']
-#         taskid = request.form['taskid']
-#         submissionid = request.form['submissionid']
-
-#         folder_id = '1UiuN6RWsgLSvBJOFhCHGwyV5f5fOirks'
-
-#         file_url = upload_to_google_drive('temp_file', file.filename, folder_id)
-#         update_task_submission_url_in_database(submissionid, file_url, classno, teacherid, studentid, taskid)
-
-#         return jsonify({'message': 'File updated successfully', 'file_url': file_url})
-#     except Exception as e:
-#         return jsonify({'error': str(e)})
-    
-# @app.route('/api/add_tasksubmission', methods=['POST'])
-# def add_tasksubmission():
-#     try:
-#         data = request.get_json()
-
-#         insert_query = """
-#         INSERT INTO public.tasksubmission(file, score, classno, teacherid, studentid, taskid)
-# 	    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
-#         """
-#         cursor.execute(insert_query, (
-#             data['file'],
-#             data['score'],
-#             data['remarks'],
-#             data['doubt'],
-#             data['classno'],
-#             data['teacherid'],
-#             data['studentid'],
-#             data['taskid']
-#         ))
-
-
-#         connection.commit()
-#         # cursor.close()
-#         # connection.close()
-
-#         return jsonify({'message': 'tasksubmission added successfully!'})
-#     except Exception as e:
-#         connection.rollback()
-#         return jsonify({'error': str(e)})
-    
-
