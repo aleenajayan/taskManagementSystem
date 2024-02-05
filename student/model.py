@@ -326,8 +326,7 @@ def chat(senderid):
 
             if not teacherid:
                 return jsonify({'error': 'Invalid taskid'}), 400
-
-            if 'message' not in data or not data['message']:
+            if 'message' not in data or not data['message'].strip():  # Check for non-empty content
                 return jsonify({'error': 'Please provide non-empty content in the request data.'}), 400
             
             sendertype= 'student'
@@ -403,7 +402,7 @@ def chatteacher(senderid):
             if 'studentid' not in data:
                 return jsonify({'error': 'Please provide taskid in the request data.'}), 400
             
-            if 'message' not in data or not data['message']:
+            if 'message' not in data or not data['message'].strip():  # Check for non-empty content
                 return jsonify({'error': 'Please provide non-empty content in the request data.'}), 400
             
             sendertype= 'teacher'
@@ -453,3 +452,90 @@ def chatteacher(senderid):
         except Exception as e:
             print(f"Error: {e}")
             return jsonify({'error': 'Internal Server Error'}), 500
+        
+#_______________________________send mail by type____________________________________________________________
+from flask import Flask, request, jsonify
+from flask_mail import Mail, Message
+
+app = Flask(__name__)
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = 'tarentotask@gmail.com'
+app.config['MAIL_PASSWORD'] = 'upok lnov qiri nbjs'
+app.config['MAIL_DEFAULT_SENDER'] = 'tarentotask@gmail.com'
+
+mail = Mail(app)
+
+def send_email(type):
+    try:         
+       data = request.get_json()
+       subject = data['subject']
+       body = data['message_body']
+   
+       fetch_emails_query = "SELECT email FROM login WHERE type = %s"
+       cursor.execute(fetch_emails_query, (type,))
+       emails = cursor.fetchall()
+       
+       if not emails:
+               return jsonify({'error': 'No emails found for the specified user type'})
+   
+        
+       for email in emails:
+          recipient_email = email[0]
+          message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
+          message.body = body
+          mail.send(message)
+          return jsonify({'message': 'Email sent successfully!'})
+          
+    except Exception as e:
+         print(f'Error sending email: {str(e)}')
+         return jsonify({'error': 'Failed to send email'}), 500
+#_____________________________mail forgot password____________________________  
+ 
+def forgot_password():
+    try:
+       data = request.get_json()
+       email = data['email']
+       subject = 'Forget Password' 
+       body = 'Click is this link to change your password '
+       
+       if 'email' not in data or not data['email'].strip():
+        return jsonify({'error': 'Email is required and cannot be empty or contain only spaces'})
+ 
+    
+       if '@' not in data['email'] or '.' not in data['email']:
+         return jsonify({'error': 'Invalid email format'})
+     
+       query ="SELECT username, password FROM login WHERE email=%s"
+       cursor.execute(query, (email,))
+       data = cursor.fetchall()
+       
+       if not data :
+           return jsonify({'error': 'Give the registered email id'})
+       else:
+          recipient_email = email
+          message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
+          message.body = body
+          mail.send(message)
+          return jsonify({'message': 'Email sent successfully!'})
+               
+    except Exception as e:
+        return jsonify(f'Error sending email: {str(e)}', 'error') 
+#_________________________link for change password____________________________
+def new_password(email):
+    try:
+        data = request.get_json()
+        new_password = data['new_password']
+        
+        # Update the password in the database
+        update_query = "UPDATE login SET password = %s WHERE email = %s"
+        cursor.execute(update_query, (new_password, email))
+        connection.commit()
+
+        return jsonify({'message': 'Password updated successfully'})
+    except Exception as e:
+        return jsonify({'error': f'Error updating password: {str(e)}'})
+

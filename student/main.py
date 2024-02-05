@@ -60,103 +60,19 @@ def studentchat(senderid):
 def teacherchat(senderid):
     return chatteacher(senderid)
 
-
-
-
-
-
-
-
-
-
-
-
 #_______________________________send mail by type____________________________________________________________
-
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'tarentotask@gmail.com'
-app.config['MAIL_PASSWORD'] = 'upok lnov qiri nbjs'
-app.config['MAIL_DEFAULT_SENDER'] = 'tarentotask@gmail.com'
-
-mail = Mail(app)
-
 @app.route('/api/email/<string:type>', methods=['POST'])
-def send_email(type):
-    try:         
-       data = request.get_json()
-       subject = data['subject']
-       body = data['message_body']
-   
-       fetch_emails_query = "SELECT email FROM login WHERE type = %s"
-       cursor.execute(fetch_emails_query, (type,))
-       emails = cursor.fetchall()
-       
-       if not emails:
-               return jsonify({'error': 'No emails found for the specified user type'})
-   
-        
-       for email in emails:
-          recipient_email = email[0]
-          message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
-          message.body = body
-          mail.send(message)
-          return jsonify({'message': 'Email sent successfully!'})
-          
-    except Exception as e:
-        return jsonify(f'Error sending email: {str(e)}', 'error')  
-    
-
-#_____________________________mail forgot password____________________________  
+def email_type(type):
+    return send_email(type)    
+#_____________________________mail forgot password_____________________________________________ 
 @app.route('/api/email/forgotpwd', methods=['POST'])
-def forgot_password():
-    try:
-       data = request.get_json()
-       email = data['email']
-       subject = 'Forget Password' 
-       body = 'Click is this link to change your password '
-       
-       if 'email' not in data or not data['email'].strip():
-        return jsonify({'error': 'Email is required and cannot be empty or contain only spaces'})
- 
-    
-       if '@' not in data['email'] or '.' not in data['email']:
-         return jsonify({'error': 'Invalid email format'})
-     
-       query ="SELECT username, password FROM login WHERE email=%s"
-       cursor.execute(query, (email,))
-       data = cursor.fetchall()
-       
-       if not data :
-           return jsonify({'error': 'Give the registered email id'})
-       else:
-          recipient_email = email
-          message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
-          message.body = body
-          mail.send(message)
-          return jsonify({'message': 'Email sent successfully!'})
-               
-    except Exception as e:
-        return jsonify(f'Error sending email: {str(e)}', 'error') 
+def password_forgot():
+    return forgot_password()
     
 #_________________________link for change password____________________________
-@app.route('/api/email/forgotpwd/newpassword/<string:email>', methods=['POST'])     
-def new_password(email):
-    try:
-        data = request.get_json()
-        new_password = data['new_password']
-        
-        # Update the password in the database
-        update_query = "UPDATE login SET password = %s WHERE email = %s"
-        cursor.execute(update_query, (new_password, email))
-        connection.commit()
-
-        return jsonify({'message': 'Password updated successfully'})
-    except Exception as e:
-        return jsonify({'error': f'Error updating password: {str(e)}'})
-
+@app.route('/api/email/forgotpwd/newpassword/<string:email>', methods=['POST']) 
+def password_new(email):
+    return new_password(email)   
        
   
 if __name__ == '__main__':
