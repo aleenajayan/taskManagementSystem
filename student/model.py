@@ -92,7 +92,7 @@ def upload_to_google_drive(file_path, file_name, folder_id):
         return file.get('webContentLink')
     except Exception as e:
         return str(e)
-    
+  
 def task_submission(taskid):
     try:
         file = request.files['file']
@@ -307,210 +307,149 @@ def tasklist_view(student_id):
 
         return jsonify({'tasks': tasks_data})
     except Exception as e:
-        return jsonify({'error': str(e)})
+        return jsonify({'error': str(e)}) 
+#__________________________________________student chat section_______________________________________________
 
 
-
-#____________________upload file by teacher__________________________
-# drive_credentials = service_account.Credentials.from_service_account_file('credentials.json', scopes=['https://www.googleapis.com/auth/drive.file'])
-def add_task(teacherid):
+def chat(senderid):
     if request.method == 'POST':
         try:
-            file = request.files['file']
-            print("______________________________________",file)
-            file.save('temp_file')
-            duedate = request.form['duedate']
-            question = request.form['question']
-            classNo = request.form['classNo']
-            folder_id = '1UiuN6RWsgLSvBJOFhCHGwyV5f5fOirks'
+            data = request.get_json()
+            print("_________",data)
+
+            if 'taskid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+
+            fetch_teacher_query = "SELECT teacherid FROM task WHERE taskid = %s;"
+            cursor.execute(fetch_teacher_query, (data['taskid'],))
+            teacherid = cursor.fetchone()
+
+            if not teacherid:
+                return jsonify({'error': 'Invalid taskid'}), 400
+
+            if 'message' not in data or not data['message']:
+                return jsonify({'error': 'Please provide non-empty content in the request data.'}), 400
             
-            if not duedate:
-                return jsonify({'error': 'Due date is required.'}), 400
- 
-            if not question and not file:
-                return jsonify({'error': 'Either "question" or "file" is required.'}), 400
- 
-            if not classNo:
-                return jsonify({'error': 'Class number is required.'}), 400
- 
-            file_url = upload_to_google_drive('temp_file', file.filename, folder_id)
-            print("___________________",file_url)
- 
-            insert_query = """
-            INSERT INTO task(duedate, question, classNo, teacherid,file)
-            VALUES (%(duedate)s, %(question)s, %(classNo)s, %(teacherid)s,%(file)s);
-            """
-            if file and question:
-                cursor.execute(insert_query, {
-                    'duedate': duedate,
-                    'question': question,
-                    'classNo': classNo,
-                    'teacherid': teacherid,
-                    'file': file_url
-                })
- 
-                connection.commit()
-                return jsonify({'message': 'Task added successfully!'})
- 
-            elif file and not question:
-                cursor.execute(insert_query, {
-                    'duedate': duedate,
-                    'question': "Nill",
-                    'classNo': classNo,
-                    'teacherid': teacherid,
-                    'file': file_url
-                })
- 
-                connection.commit()
-                return jsonify({'message': 'Task added successfully!'})
-            else:
-                cursor.execute(insert_query, {
-                    'duedate': duedate,
-                    'question': question,
-                    'classNo': classNo,
-                    'teacherid': teacherid,
-                    'file': "Nill"
-                })
- 
-                connection.commit()
-                return jsonify({'message': 'Task added successfully!'})
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-    elif request.method == 'GET':
-        try:
-            select_query = """
-            SELECT * FROM task WHERE teacherid = %s;
-            """
-            cursor.execute(select_query, (teacherid,))
-            tasks = cursor.fetchall()
-            task_list = [{'duedate': row[2], 'question': row[3], 'classNo': row[4], 'teacherid': row[1] ,'file': row[5] } for row in tasks]
- 
-            return jsonify({'tasks': task_list})
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
- 
-#_____________________________________________delete task by teacher______________________________________
-def updateTask(taskid):
-    try:
-        # Fetch the existing task data
-        cursor.execute('SELECT * FROM task WHERE taskid = %s', (taskid,))
-        task = cursor.fetchone()
- 
-        if task is None:
-            return jsonify({'message': 'Task not found'}), 404
- 
-        # Check if the request contains form data
-        if request.form:
-            form_data_dict = dict(request.form)
- 
-            # If 'file' is present in form data, handle file update
-            if 'file' in form_data_dict:
-                existing_file_id = extract_file_id(task[5])
- 
-                # Delete the existing file from Google Drive
-                if existing_file_id:
-                    result = delete_file(existing_file_id)
-                    print("_______deleted__________",result)
- 
-                # Upload the new file to Google Drive
-                file = request.files['file']
-                file.save('temp_file')
-                folder_id = '1UiuN6RWsgLSvBJOFhCHGwyV5f5fOirks'
-                file_url = upload_to_google_drive('temp_file', file.filename, folder_id)
- 
-                # Update the task table with the new file URLS
-                form_data_dict['file'] = file_url
-                
- 
-            # Update other fields
-            updated_fields = []
-            for key, value in form_data_dict.items():
-                cursor.execute(f'UPDATE task SET {key} = %s WHERE taskid = %s', (value, taskid))
-                updated_fields.append(key)
- 
+            sendertype= 'student'
+
+            query = "INSERT INTO chat (senderid, receiverid, taskid, content, sendertype) VALUES (%s, %s, %s, %s, %s);"
+            cursor.execute(query, (senderid, teacherid[0], data['taskid'] ,data['message'],sendertype))
             connection.commit()
-            return jsonify({'message': 'Task data updated successfully', 'updated_fields': updated_fields})
- 
-        # If no form data is present in the request
-        else:
-            return jsonify({'message': 'No data provided in the request'}), 400
- 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-# #_________________________________mail send by type_______________
-# def send_email():
-#     try:
-#         # Collect data from the request JSON
-#         data = request.get_json()
-#         student_email = data['student_email']
-#         subject = data['subject']
-#         body = data['message_body']
-#         user_type = data['type']  # Assuming 'type' is the parameter indicating the user type
+            print("_____________________",query)
 
-#         # Fetch all emails based on the user type from the login table
-#         fetch_emails_query = "SELECT email FROM login WHERE type = %s"
-#         cursor.execute(fetch_emails_query, (user_type,))
-#         emails = cursor.fetchall()
+            return jsonify({'message': 'Chat added successfully!'})
 
-#         if not emails:
-#             return jsonify({'error': 'No emails found for the specified user type'})
+        except Exception as e:
+            print(f"Error: {e}")
+            connection.rollback()
+            return jsonify({'error': 'Internal Server Error'}), 500
+    else:
+        data = request.get_json()
+        if 'taskid' not in data:
+            return jsonify({'error': 'Please provide taskid in the request data.'}), 400
 
-#         # Send emails to each email address
-#         for email in emails:
-#             recipient_email = email[0]
+        fetch_teacher_query = "SELECT teacherid FROM task WHERE taskid = %s;"
+        cursor.execute(fetch_teacher_query, (data['taskid'],))
+        teacherid = cursor.fetchone()
 
-#             # Create a Flask-Mail Message object
-#             message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
-#             message.body = body
+        if not teacherid:
+            return jsonify({'error': 'Invalid taskid'}), 400
 
-#             # Send the email
-#             mail.send(message)
+        query = """
+            SELECT 
+                c.content, 
+                c.timestamp, 
+                CASE 
+                    WHEN c.sendertype = 'student' THEN s.name 
+                    WHEN c.sendertype = 'teacher' THEN t.name 
+                END AS sender_name
+            FROM chat c
+            LEFT JOIN student s ON c.senderid = s.studentid AND c.sendertype = 'student'
+            LEFT JOIN teacher t ON c.senderid = t.teacherid AND c.sendertype = 'teacher'
+            WHERE (c.senderid = %s AND c.receiverid = %s)
+            OR (c.senderid = %s AND c.receiverid = %s)
+            ORDER BY c.timestamp;
+        """
 
-#         return jsonify({'message': 'Emails sent successfully'})
-#     except Exception as e:
-#         return jsonify({'error': str(e)})
+        # Print the query for debugging
+        print("____query_____", query)
 
-# def tasklist_view(student_id):
-#     try:
-#         # Fetch the classno from the student table using studentid
-#         select_classno_query = "SELECT classno FROM student WHERE studentid = %s"
-#         cursor.execute(select_classno_query, (student_id,))
-#         classno = cursor.fetchone()
+        # Correct the number of parameters in the execute method
+        cursor.execute(
+            query,
+            (senderid, teacherid[0], senderid, teacherid[0])
+        )
 
-#         if not classno:
-#             return jsonify({'error': 'Student not found'})
+        chat_history = cursor.fetchall()
 
-#         classno = classno[0]
+        # Replace the following line with your HTML rendering logic
+        return jsonify({'chat_history': chat_history})
 
-#         # Get the current date and time
-#         current_date = datetime.now()
+#__________________________________________teacher chat section_______________________________________________
 
-#         # Query to fetch tasks excluding those already submitted by the student
-#         select_query = """
-#         SELECT t.duedate, t.question, te.name
-#         FROM task t
-#         JOIN teacher te ON t.teacherid = te.teacherid
-#         WHERE t.classno = %s
-#         AND t.duedate >= %s
-#         AND NOT EXISTS (
-#             SELECT 1
-#             FROM tasksubmission ts
-#             WHERE ts.taskid = t.taskid
-#             AND ts.studentid = %s
-#         );
-#         """
-#         cursor.execute(select_query, (classno, current_date, student_id))
-#         tasks = cursor.fetchall()
 
-#         tasks_data = [
-#             {
-#                 'duedate': task[0],
-#                 'question': task[1],
-#                 'teachername': task[2]
-#             }
-#             for task in tasks
-#         ]
+def chatteacher(senderid):
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            print("_________",data)
 
-#         return jsonify({'tasks': tasks_data})
-#     except Exception as e:
-#         return jsonify({'error': str(e)})
+            if 'taskid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+            # fetch_teacher_query = "SELECT classno FROM task WHERE taskid = %s;"
+            # cursor.execute(fetch_teacher_query, (data['taskid'],))
+            # classno = cursor.fetchone()
+            
+            if 'studentid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+            
+            if 'message' not in data or not data['message']:
+                return jsonify({'error': 'Please provide non-empty content in the request data.'}), 400
+            
+            sendertype= 'teacher'
+
+            query = "INSERT INTO chat (senderid, receiverid, taskid, content, sendertype) VALUES (%s, %s, %s, %s,%s);"
+            cursor.execute(query, (senderid, data['studentid'], data['taskid'] ,data['message'],sendertype))
+            connection.commit()
+            print("_____________________",query)
+
+            return jsonify({'message': 'Chat added successfully!'})
+
+        except Exception as e:
+            print(f"Error: {e}")
+            connection.rollback()
+            return jsonify({'error': 'Internal Server Error'}), 500
+    else:
+        try:
+            data = request.get_json()
+            # if 'receiverid' not in data:
+            #     return jsonify({'error': 'Please provide receiver_id in the request data.'}), 400
+            if 'taskid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+
+            teacherid = senderid
+
+            query = """
+               SELECT 
+                c.content, 
+                c.timestamp, 
+                CASE 
+                    WHEN c.sendertype = 'student' THEN s.name 
+                    WHEN c.sendertype = 'teacher' THEN t.name 
+                END AS sender_name
+            FROM chat c
+            LEFT JOIN student s ON c.senderid = s.studentid AND c.sendertype = 'student'
+            LEFT JOIN teacher t ON c.senderid = t.teacherid AND c.sendertype = 'teacher'
+            WHERE (c.senderid = %s AND c.receiverid = %s)
+            OR (c.senderid = %s AND c.receiverid = %s)
+            ORDER BY c.timestamp;
+            """
+            cursor.execute(query, (senderid, teacherid, teacherid, senderid))
+            chat_history = cursor.fetchall()
+
+            # Replace the following line with your HTML rendering logic
+            return jsonify({'chat_history': chat_history})
+
+        except Exception as e:
+            print(f"Error: {e}")
+            return jsonify({'error': 'Internal Server Error'}), 500
