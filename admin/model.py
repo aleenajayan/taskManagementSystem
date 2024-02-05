@@ -45,8 +45,8 @@ def manage_teachers():
 
             # Insert into teacher table
             teacher_insert_query = """
-            INSERT INTO teacher (loginId, name, department, email, phoneNo)
-            VALUES (%(loginId)s, %(name)s, %(department)s, %(email)s, %(phoneNo)s)
+            INSERT INTO teacher (, name, department, email, phoneNo)
+            VALUES (%(loginloginIdId)s, %(name)s, %(department)s, %(email)s, %(phoneNo)s)
             """
             cursor.execute(teacher_insert_query, {
                 'loginId': login_id,

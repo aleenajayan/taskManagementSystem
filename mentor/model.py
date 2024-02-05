@@ -5,45 +5,57 @@ from psycopg2 import sql
 # import bcrypt
 from connection import *
 from cerberus import Validator
-    
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_mail import Mail, Message
+app = Flask(__name__)
+app.secret_key = 'taskmanagement'
+ 
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = 'tarentotask@gmail.com'
+app.config['MAIL_PASSWORD'] = 'xqiu aycu whas eknl'
+app.config['MAIL_DEFAULT_SENDER'] = 'tarentotask@gmail.com'
+ 
+mail = Mail(app)
     
 def validate_student_data(data):
-    if 'username' not in data or not data['username']:
-        return jsonify({'error': 'Username is required'})
+    if 'username' not in data or not data['username'].strip():
+        return jsonify({'error': 'Username is required and cannot be empty or contain only spaces'})
 
-    if 'password' not in data or not data['password']:
-        return jsonify({'error': 'Password is required'})
+    if 'password' not in data or not data['password'].strip():
+        return jsonify({'error': 'Password is required and cannot be empty or contain only spaces'})
 
-    if 'name' not in data or not data['name']:
-        return jsonify({'error': 'Name is required'})
+    if 'name' not in data or not data['name'].strip():
+        return jsonify({'error': 'Name is required and cannot be empty or contain only spaces'})
 
-    if 'department' not in data or not data['department']:
-        return jsonify({'error': 'Department is required'})
+    if 'department' not in data or not data['department'].strip():
+        return jsonify({'error': 'Department is required and cannot be empty or contain only spaces'})
 
-    if 'email' not in data or not data['email']:
-        return jsonify({'error': 'Email is required'})
+    if 'email' not in data or not data['email'].strip():
+        return jsonify({'error': 'Email is required and cannot be empty or contain only spaces'})
 
     # You can add more specific validation checks for email format, phone number, etc.
     # For example, check if the email is in a valid format
-    if '@' not in data['email']:
-        return jsonify({'error': 'Invalid email format'})
-    if '.' not in data['email']:
+    if '@' not in data['email'] or '.' not in data['email']:
         return jsonify({'error': 'Invalid email format'})
 
-    if 'phoneno' not in data or not data['phoneno']:
-        return jsonify({'error': 'Phone number is required'})
+    if 'phoneno' not in data or not data['phoneno'].strip():
+        return jsonify({'error': 'Phone number is required and cannot be empty or contain only spaces'})
 
     # You can add more specific validation checks for phone number format
-    if not data['phoneno'].isdigit():
+    if not data['phoneno'].strip().isdigit():
         return jsonify({'error': 'Invalid phone number format'})
 
-    if 'rollNo' not in data or not data['rollNo']:
-        return jsonify({'error': 'Roll number is required'})
+    if 'rollNo' not in data or not data['rollNo'].strip():
+        return jsonify({'error': 'Roll number is required and cannot be empty or contain only spaces'})
 
-    if 'classNo' not in data or not data['classNo']:
-        return jsonify({'error': 'Class number is required'})
+    if 'classNo' not in data or not data['classNo'].strip():
+        return jsonify({'error': 'Class number is required and cannot be empty or contain only spaces'})
 
     return None  # Indicates successful validation
+
 
 def manage_students(teacherid):
     if request.method == 'POST':
@@ -176,59 +188,136 @@ def manage_announcements(teacherid):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+ 
+
+# drive_credentials = service_account.Credentials.from_service_account_file('credentials.json', scopes=['https://www.googleapis.com/auth/drive.file'])
 def add_task(teacherid):
     if request.method == 'POST':
         try:
-            data = request.get_json()
+            file = request.files['file']
+            print("______________________________________",file)
+            file.save('temp_file')
+            duedate = request.form['duedate']
+            question = request.form['question']
+            classNo = request.form['classNo']
+            folder_id = '1UiuN6RWsgLSvBJOFhCHGwyV5f5fOirks'
+            
+            if not duedate:
+                return jsonify({'error': 'Due date is required.'}), 400
 
-            if 'duedate' not in data:
-                return jsonify({'error': 'duedate is a required fields'}), 400
-            if 'question' not in data :
-                return jsonify({'error': 'question is a required fields'}), 400
-            if 'classNo' not in data:
-                return jsonify({'error': 'classNo is a required fields'}), 400
+            if not question and not file:
+                return jsonify({'error': 'Either "question" or "file" is required.'}), 400
 
-            if not data['duedate'] or not data['question'] or not data['classNo']:
-                return jsonify({'error': 'All fields must have non-empty values'}), 400
+            if not classNo:
+                return jsonify({'error': 'Class number is required.'}), 400
 
-        
-            if len(data['question']) > 255:
-                return jsonify({'error': 'Question cannot exceed 255 characters'}), 400
-
-            if not data['classNo'].isdigit() or int(data['classNo']) <= 0:
-                return jsonify({'error': 'classNo must be a positive integer'}), 400
+            file_url = upload_to_google_drive('temp_file', file.filename, folder_id)
+            print("___________________",file_url)
 
             insert_query = """
-            INSERT INTO task(duedate, question, classNo, teacherid)
-            VALUES (%(duedate)s, %(question)s, %(classNo)s, %(teacherid)s);
+            INSERT INTO task(duedate, question, classNo, teacherid,file)
+            VALUES (%(duedate)s, %(question)s, %(classNo)s, %(teacherid)s,%(file)s);
             """
-            cursor.execute(insert_query, {
-                'duedate': data['duedate'],
-                'question': data['question'],
-                'classNo': data['classNo'],
-                'teacherid': teacherid
-            })
+            if file and question:
+                cursor.execute(insert_query, {
+                    'duedate': duedate,
+                    'question': question,
+                    'classNo': classNo,
+                    'teacherid': teacherid,
+                    'file': file_url
+                })
 
-            connection.commit()
+                connection.commit()
+                return jsonify({'message': 'Task added successfully!'})
 
-            return jsonify({'message': 'Task added successfully!'})
+            elif file and not question:
+                cursor.execute(insert_query, {
+                    'duedate': duedate,
+                    'question': "Nill",
+                    'classNo': classNo,
+                    'teacherid': teacherid,
+                    'file': file_url
+                })
+
+                connection.commit()
+                return jsonify({'message': 'Task added successfully!'})
+            else:
+                cursor.execute(insert_query, {
+                    'duedate': duedate,
+                    'question': question,
+                    'classNo': classNo,
+                    'teacherid': teacherid,
+                    'file': "Nill"
+                })
+
+                connection.commit()
+                return jsonify({'message': 'Task added successfully!'})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     elif request.method == 'GET':
         try:
-            # Example query, modify as per your needs
             select_query = """
             SELECT * FROM task WHERE teacherid = %s;
             """
             cursor.execute(select_query, (teacherid,))
             tasks = cursor.fetchall()
-
-            # Convert result to a list of dictionaries
-            task_list = [{'duedate': row[0], 'question': row[1], 'classNo': row[2], 'teacherid': row[3]} for row in tasks]
+            task_list = [{'duedate': row[2], 'question': row[3], 'classNo': row[4], 'teacherid': row[1] ,'file': row[5] } for row in tasks]
 
             return jsonify({'tasks': task_list})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+ 
+def deleteTask(taskid):
+    try:
+        fetch_url_query = """
+        SELECT file FROM task WHERE taskid = %s;
+        """
+        cursor.execute(fetch_url_query, (taskid,))
+        existing_file_url = cursor.fetchone()
+ 
+        if existing_file_url:
+            existing_file_id = extract_file_id(existing_file_url[0])
+ 
+            if existing_file_id:
+                result = delete_file(existing_file_id)
+                print(result)
+            else:
+                print("Unable to extract file ID from the existing URL.")
+        
+        
+        # Fetch file URLs for the task from the tasksubmission table
+        fetch_submission_urls_query = """
+        SELECT file FROM tasksubmission WHERE taskid = %s;
+        """
+        cursor.execute(fetch_submission_urls_query, (taskid,))
+        submission_urls = cursor.fetchall()
+ 
+        # Iterate through submission URLs and delete each file from Google Drive
+        for submission_url in submission_urls:
+            file_id = extract_file_id(submission_url[0])
+            if file_id:
+                delete_file(file_id)
+ 
+        # Delete rows from the tasksubmission table
+        delete_tasksubmission_query = """
+            DELETE FROM tasksubmission
+            WHERE taskid = %s;
+        """
+        cursor.execute(delete_tasksubmission_query, (taskid,))
+        connection.commit()
+ 
+        # Delete the task from the task table
+        delete_task_query = """
+            DELETE FROM task
+            WHERE taskid = %s;
+        """
+        cursor.execute(delete_task_query, (taskid,))
+        connection.commit()
+ 
+        return {'message': 'Task and associated files deleted successfully'}
+ 
+    except Exception as e:
+        return {'error': str(e)}, 500
 
 def view_submitted_task(teacherid):
     try:
@@ -304,3 +393,27 @@ def delete_student(studentid):
         print(f"Error: {e}")
         connection.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+
+# def resetRequest():
+#     data = request.get_json()
+ 
+#     recipient = data['recipient']
+#     subject = data['subject']
+#     message_body = data['message_body']
+#     print("______collected data__________________")
+ 
+#     try:
+#         message = Message(subject, recipients=[recipient])
+#         print("_____________message___________",message)
+#         message.body = message_body
+#         mail.send(message)
+#         return jsonify({'message': 'Email sent successfully!'})
+ 
+#         # flash('Email sent successfully', 'success')
+#     except Exception as e:
+#         return jsonify(f'Error sending email: {str(e)}', 'error')
+ 
+#     return redirect(url_for('index'))
+

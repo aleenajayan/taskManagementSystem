@@ -1,0 +1,400 @@
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+import psycopg2
+
+app = Flask(__name__)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:root@localhost:5432/Task_db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  
+
+db = SQLAlchemy(app)
+db_params= {
+    'host':'localhost',
+    'user':'postgres',
+    'password':'root',
+    'database':'Task_db',
+}
+
+
+# Connect to PostgreSQL database
+connection = psycopg2.connect(**db_params)
+cursor = connection.cursor()
+
+
+
+#==============================Teacher Table Get and Post Code====================================
+#=================================================================================================
+
+@app.route('/api/add_teacher', methods=['POST'])
+def add_teacher():
+    try:
+        data = request.get_json()
+
+        # Execute INSERT query
+        insert_query = """
+        INSERT INTO teacher (password, username, name, department, email, phoneno)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(insert_query, (
+            data['password'],
+            data['username'],
+            data['name'],
+            data['department'],
+            data['email'],
+            data['phoneno']
+        ))
+
+        # Commit changes and close connection
+        connection.commit()
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'message': 'Teacher added successfully!'})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    
+############################################################################################
+
+# Route to get all teachers using psycopg2
+@app.route('/api/get_teachers', methods=['GET'])
+def get_teachers():
+    try:
+
+        # Execute SELECT query to get all teachers
+        select_query = """
+        SELECT * FROM teacher
+        """
+        cursor.execute(select_query)
+        teachers = cursor.fetchall()
+
+        # Convert the list of teachers to a JSON response
+        teachers_data = [
+            {
+                'password': teacher[0],
+                'username': teacher[1],
+                'name': teacher[2],
+                'department': teacher[3],
+                'email': teacher[4],
+                'phoneno': teacher[5]
+            }
+            for teacher in teachers
+        ]
+
+        # Close connection
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'teachers': teachers_data})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+#==============================Student Table Get and Post Code====================================
+#=================================================================================================
+
+
+@app.route('/api/add_student', methods=['POST'])
+def add_student():
+    try:
+        data = request.get_json()
+
+        insert_query = """
+        INSERT INTO public.student(password, username, name, department, email, phoneno, class, rollno, teacherid)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(insert_query, (
+            data['password'],
+            data['username'],
+            data['name'],
+            data['department'],
+            data['email'],
+            data['phoneno'],
+            data['class'],
+            data['rollno'],
+            data['teacherid']
+        ))
+
+
+        connection.commit()
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'message': 'Student added successfully!'})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    
+#########################################################################################
+    
+@app.route('/api/get_student', methods=['GET'])
+def get_student():
+    try:
+
+        # Execute SELECT query to get all teachers
+        select_query = """
+        SELECT * FROM student
+        """
+        cursor.execute(select_query)
+        students = cursor.fetchall()
+
+        # Convert the list of teachers to a JSON response
+        students_data = [
+            {
+                'password': student[0],
+                'username': student[1],
+                'name': student[2],
+                'department': student[3],
+                'email': student[4],
+                'phoneno': student[5],
+                'class': student[6],
+                'rollno': student[7],
+                'teacherid': student[8]
+            }
+            for student in students
+        ]
+        # Close connection
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'students': students_data})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+#==============================Announcement Table Get and Post Code====================================
+#=================================================================================================
+    
+@app.route('/api/add_announcement', methods=['POST'])
+def add_announcement():
+    try:
+        data = request.get_json()
+
+        insert_query = """
+        INSERT INTO public.announcement(announcement, class, teacherid)
+	    VALUES (%s, %s, %s);
+        """
+        cursor.execute(insert_query, (
+            data['announcement'],  
+            data['class'],          
+            data['teacherid']  
+        ))
+
+
+        connection.commit()
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'message': 'Announcement added successfully!'})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+###################################################################################################
+
+@app.route('/api/get_announcement', methods=['GET'])
+def get_announcement():
+    try:
+
+        # Execute SELECT query to get all teachers
+        select_query = """
+        SELECT * FROM announcement
+        """
+        cursor.execute(select_query)
+        announcements= cursor.fetchall()
+
+        # Convert the list of teachers to a JSON response
+        announcements_data = [
+            {
+                'announcement': announcement[0],
+                'class': announcement[1],
+                'teacherid': announcement[2]
+            }
+            for announcement in announcements
+        ]
+        # Close connection
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'announcements': announcements_data})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    
+
+# #==============================TAsk Table Get and Post Code====================================
+# #=================================================================================================
+@app.route('/api/add_task', methods=['POST'])
+def add_task():
+    try:
+        data = request.get_json()
+
+        insert_query = """
+        INSERT INTO public.task( duedate, question, class, teacherid)
+	    VALUES (%s, %s, %s, %s);
+        """
+        cursor.execute(insert_query, (
+            data['duedate'],
+            data['question'],
+            data['class'],
+            data['teacherid']
+        ))
+
+
+        connection.commit()
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'message': 'Task added successfully!'})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+# ######################################################################################################
+@app.route('/api/get_task', methods=['GET'])
+def get_task():
+    try:
+        select_query = """
+        SELECT * FROM task
+        """
+        cursor.execute(select_query)
+        tasks= cursor.fetchall()
+
+        tasks_data = [
+            {
+                'duedate': task[0],
+                'question': task[1],
+                'class': task[2],
+                'teacherid': task[3]
+            }
+            for task in tasks
+        ]
+        # Close connection
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'tasks': tasks_data})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+# #==============================Task Submission Table Get and Post Code====================================
+# #=================================================================================================
+@app.route('/api/add_tasksubmission', methods=['POST'])
+def add_tasksubmission():
+    try:
+        data = request.get_json()
+
+        insert_query = """
+        INSERT INTO public.tasksubmission(file, score, remarks, doubt, submissionstatus, class, teacherid, studentid, taskid)
+	    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+        """
+        cursor.execute(insert_query, (
+            data['file'],
+            data['score'],
+            data['remarks'],
+            data['doubt'],
+            data['submissionstatus'],
+            data['class'],
+            data['teacherid'],
+            data['studentid'],
+            data['taskid']
+        ))
+
+
+        connection.commit()
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'message': 'tasksubmission added successfully!'})
+    except Exception as e:
+        connection.rollback()
+        return jsonify({'error': str(e)})
+   
+
+# ##############################################################################################
+@app.route('/api/get_tasksubmission', methods=['GET'])
+def get_tasksubmission():
+    try:
+
+        # Execute SELECT query to get all teachers
+        select_query = """
+        SELECT * FROM tasksubmission
+        """
+        cursor.execute(select_query)
+        tasksubmissions = cursor.fetchall()
+
+        # Convert the list of teachers to a JSON response
+        tasksubmissions_data = [
+            {
+                'file': tasksubmission[0],
+                'score': tasksubmission[1],
+                'remarks': tasksubmission[2],
+                'doubt': tasksubmission[3],
+                'submissionstatus': tasksubmission[4],
+                'class': tasksubmission[5],
+                'teacherid': tasksubmission[6],
+                'studentid': tasksubmission[7],
+                'taskid': tasksubmission[8]
+            }
+            for tasksubmission in tasksubmissions
+        ]
+        # Close connection
+        # cursor.close()
+        # connection.close()
+
+        return jsonify({'tasksubmissions': tasksubmissions_data})
+    except Exception as e:
+        return jsonify({'error': str(e)})   
+
+#============================================To change password for students==============================================
+@app.route('/api/update_value/<string:studentid>', methods=['PUT'])
+def update_value(studentid):
+    try:
+        # Step 1: Receive User-Provided Data
+        data = request.get_json()
+        old_value = data.get('old_value')  # User-provided old value
+        new_value = data.get('new_value')  # User-provided new value
+
+        # Step 2: Check if the Old Value Matches the Existing Password in the Database
+        check_query = "SELECT password FROM student WHERE studentid = %s;"
+        cursor.execute(check_query, (studentid,))
+        existing_password = cursor.fetchone()
+
+        if existing_password is None or existing_password[0] != old_value:
+            # If the old password doesn't match the existing password, return an error
+            return jsonify({'error': 'Old password does not match the existing password'})
+
+        # Step 3: Update the Database with the New Password
+        update_query = "UPDATE student SET password = %s WHERE studentid = %s;"
+        cursor.execute(update_query, (new_value, studentid))
+
+        # Commit changes to the database
+        connection.commit()
+
+        # Return a JSON response indicating success
+        return jsonify({'message': 'Password updated successfully'})
+
+    except Exception as e:
+        # Handle exceptions appropriately
+        print(f"Error: {e}")
+        connection.rollback()
+        return jsonify({'error': str(e)})
+
+#=======================================delete the student by teacher=============================================
+@app.route('/api/delete_student/<string:studentid>', methods=['DELETE'])
+def delete_student(studentid):
+    try:
+        # Step 1: Delete Task Submissions for the Student
+        delete_task_submissions_query = "DELETE FROM tasksubmission WHERE studentid = %s;"
+        cursor.execute(delete_task_submissions_query, (studentid,))
+
+        # Step 2: Delete the Student
+        delete_student_query = "DELETE FROM student WHERE studentid = %s;"
+        cursor.execute(delete_student_query, (studentid,))
+
+        connection.commit()
+
+        return jsonify({'message': 'Student deleted successfully'})
+    except Exception as e:
+        # Handle exceptions appropriately
+        print(f"Error: {e}")
+        connection.rollback()
+        return jsonify({'error': str(e)})
+
+#======================================add ma============================================
+if __name__ == '__main__':
+    app.run(debug=True)
+
+    
+
+
