@@ -38,6 +38,7 @@ def announcements(teacherid):
 def task(teacherid):
     return add_task(teacherid)
 
+
 @app.route('/api/teacher/taskSubmitted/<string:teacherid>', methods=['GET'])
 def taskSubmitted(teacherid):
     return view_submitted_task(teacherid)

@@ -266,58 +266,7 @@ def add_task(teacherid):
             return jsonify({'tasks': task_list})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
- 
-def deleteTask(taskid):
-    try:
-        fetch_url_query = """
-        SELECT file FROM task WHERE taskid = %s;
-        """
-        cursor.execute(fetch_url_query, (taskid,))
-        existing_file_url = cursor.fetchone()
- 
-        if existing_file_url:
-            existing_file_id = extract_file_id(existing_file_url[0])
- 
-            if existing_file_id:
-                result = delete_file(existing_file_id)
-                print(result)
-            else:
-                print("Unable to extract file ID from the existing URL.")
-        
-        
-        # Fetch file URLs for the task from the tasksubmission table
-        fetch_submission_urls_query = """
-        SELECT file FROM tasksubmission WHERE taskid = %s;
-        """
-        cursor.execute(fetch_submission_urls_query, (taskid,))
-        submission_urls = cursor.fetchall()
- 
-        # Iterate through submission URLs and delete each file from Google Drive
-        for submission_url in submission_urls:
-            file_id = extract_file_id(submission_url[0])
-            if file_id:
-                delete_file(file_id)
- 
-        # Delete rows from the tasksubmission table
-        delete_tasksubmission_query = """
-            DELETE FROM tasksubmission
-            WHERE taskid = %s;
-        """
-        cursor.execute(delete_tasksubmission_query, (taskid,))
-        connection.commit()
- 
-        # Delete the task from the task table
-        delete_task_query = """
-            DELETE FROM task
-            WHERE taskid = %s;
-        """
-        cursor.execute(delete_task_query, (taskid,))
-        connection.commit()
- 
-        return {'message': 'Task and associated files deleted successfully'}
- 
-    except Exception as e:
-        return {'error': str(e)}, 500
+
 
 def view_submitted_task(teacherid):
     try:
