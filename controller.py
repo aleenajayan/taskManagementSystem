@@ -13,6 +13,8 @@ from googleapiclient.http import MediaFileUpload
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'task'
+
+
 #___________________________________________Admin_______________________________________________________________
 
 
@@ -47,6 +49,15 @@ def marks(submissionid):
 @app.route('/api/teacher/students/deleteStudent/<string:studentid>', methods=['DELETE'])
 def deleteStudent(studentid):
     return delete_student(studentid)
+
+from login import *
+@app.route('/api/login', methods=['POST'])
+def userlogin():
+    return login()
+
+@app.route('/api/teacher/task/updatingTask/<string:taskid>', methods=['DELETE'])
+def Taskdelete(taskid):
+    return deleteTask(taskid)
 
 if __name__ == '__main__':
     app.run(debug=True)
