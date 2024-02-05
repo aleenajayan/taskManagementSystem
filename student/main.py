@@ -49,6 +49,72 @@ def delete_task(submissionid):
 def task_list(studentid):
     return tasklist_view(studentid)
 
+#__________________________________________studentchat section___________________________________
+
+@app.route('/api/student/task/chat/<string:senderid>', methods=['GET', 'POST'])
+def chat(senderid):
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            print("_________",data)
+
+            if 'taskid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+
+            fetch_teacher_query = "SELECT teacherid FROM task WHERE taskid = %s;"
+            cursor.execute(fetch_teacher_query, (data['taskid'],))
+            teacherid = cursor.fetchone()
+
+            if not teacherid:
+                return jsonify({'error': 'Invalid taskid'}), 400
+
+            if 'message' not in data or not data['message']:
+                return jsonify({'error': 'Please provide non-empty content in the request data.'}), 400
+
+            query = "INSERT INTO chat (senderid, receiverid, taskid, content) VALUES (%s, %s, %s, %s);"
+            cursor.execute(query, (senderid, teacherid[0], data['taskid'] ,data['message']))
+            connection.commit()
+            print("_____________________",query)
+
+            return jsonify({'message': 'Chat added successfully!'})
+
+        except Exception as e:
+            print(f"Error: {e}")
+            connection.rollback()
+            return jsonify({'error': 'Internal Server Error'}), 500
+    else:
+        try:
+            data = request.get_json()
+            # if 'receiverid' not in data:
+            #     return jsonify({'error': 'Please provide receiver_id in the request data.'}), 400
+            if 'taskid' not in data:
+                return jsonify({'error': 'Please provide taskid in the request data.'}), 400
+
+            fetch_teacher_query = "SELECT teacherid FROM task WHERE taskid = %s;"
+            cursor.execute(fetch_teacher_query, (data['taskid'],))
+            teacherid = cursor.fetchone()
+
+            if not teacherid:
+                return jsonify({'error': 'Invalid taskid'}), 400
+
+            query = """
+                SELECT senderid, content, timestamp
+                FROM chat
+                WHERE (senderid = %s AND receiverid = %s)
+                   OR (senderid = %s AND receiverid = %s)
+                ORDER BY timestamp;
+            """
+            cursor.execute(query, (senderid, teacherid, teacherid, senderid))
+            chat_history = cursor.fetchall()
+
+            # Replace the following line with your HTML rendering logic
+            return jsonify({'chat_history': chat_history})
+
+        except Exception as e:
+            print(f"Error: {e}")
+            return jsonify({'error': 'Internal Server Error'}), 500
+ 
+
 #_______________________________send mail by type____________________________________________________________
 
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -88,14 +154,21 @@ def send_email(type):
     
 
 #_____________________________mail forgot password____________________________  
-@app.route('/api/email/forgotpassword', methods=['POST'])
+@app.route('/api/email/forgotpwd', methods=['POST'])
 def forgot_password():
     try:
        data = request.get_json()
        email = data['email']
        subject = 'Forget Password' 
-       body = 'Click is this link to change your password'
+       body = 'Click is this link to change your password '
        
+       if 'email' not in data or not data['email'].strip():
+        return jsonify({'error': 'Email is required and cannot be empty or contain only spaces'})
+ 
+    
+       if '@' not in data['email'] or '.' not in data['email']:
+         return jsonify({'error': 'Invalid email format'})
+     
        query ="SELECT username, password FROM login WHERE email=%s"
        cursor.execute(query, (email,))
        data = cursor.fetchall()
@@ -112,6 +185,23 @@ def forgot_password():
     except Exception as e:
         return jsonify(f'Error sending email: {str(e)}', 'error') 
     
+#_________________________link for change password____________________________
+@app.route('/api/email/forgotpwd/newpassword/<string:email>', methods=['POST'])     
+def new_password(email):
+    try:
+        data = request.get_json()
+        new_password = data['new_password']
+        
+        # Update the password in the database
+        update_query = "UPDATE login SET password = %s WHERE email = %s"
+        cursor.execute(update_query, (new_password, email))
+        connection.commit()
 
+        return jsonify({'message': 'Password updated successfully'})
+    except Exception as e:
+        return jsonify({'error': f'Error updating password: {str(e)}'})
+
+       
+  
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

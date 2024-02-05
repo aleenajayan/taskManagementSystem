@@ -310,38 +310,38 @@ def tasklist_view(student_id):
         return jsonify({'error': str(e)})
 
 
-#_________________________________mail send by type_______________
-def send_email():
-    try:
-        # Collect data from the request JSON
-        data = request.get_json()
-        student_email = data['student_email']
-        subject = data['subject']
-        body = data['message_body']
-        user_type = data['type']  # Assuming 'type' is the parameter indicating the user type
+# #_________________________________mail send by type_______________
+# def send_email():
+#     try:
+#         # Collect data from the request JSON
+#         data = request.get_json()
+#         student_email = data['student_email']
+#         subject = data['subject']
+#         body = data['message_body']
+#         user_type = data['type']  # Assuming 'type' is the parameter indicating the user type
 
-        # Fetch all emails based on the user type from the login table
-        fetch_emails_query = "SELECT email FROM login WHERE type = %s"
-        cursor.execute(fetch_emails_query, (user_type,))
-        emails = cursor.fetchall()
+#         # Fetch all emails based on the user type from the login table
+#         fetch_emails_query = "SELECT email FROM login WHERE type = %s"
+#         cursor.execute(fetch_emails_query, (user_type,))
+#         emails = cursor.fetchall()
 
-        if not emails:
-            return jsonify({'error': 'No emails found for the specified user type'})
+#         if not emails:
+#             return jsonify({'error': 'No emails found for the specified user type'})
 
-        # Send emails to each email address
-        for email in emails:
-            recipient_email = email[0]
+#         # Send emails to each email address
+#         for email in emails:
+#             recipient_email = email[0]
 
-            # Create a Flask-Mail Message object
-            message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
-            message.body = body
+#             # Create a Flask-Mail Message object
+#             message = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=[recipient_email])
+#             message.body = body
 
-            # Send the email
-            mail.send(message)
+#             # Send the email
+#             mail.send(message)
 
-        return jsonify({'message': 'Emails sent successfully'})
-    except Exception as e:
-        return jsonify({'error': str(e)})
+#         return jsonify({'message': 'Emails sent successfully'})
+#     except Exception as e:
+#         return jsonify({'error': str(e)})
 
 # def tasklist_view(student_id):
 #     try:
