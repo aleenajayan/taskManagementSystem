@@ -1,80 +1,98 @@
 from flask import Flask, jsonify, request , session
-# from flask_sqlalchemy import SQLAlchemy
 import psycopg2
-
-# from flask_bcrypt import Bcrypt, check_password_hash
-# import os
 from psycopg2 import sql
 import bcrypt
-# from google.oauth2 import service_account
-# from googleapiclient.discovery import build
-# from googleapiclient.http import MediaFileUpload
 from connection import *
+import re
 
 
 def encrypt_password(password):
-    # Generate a salt and hash the password
     salt = bcrypt.gensalt()
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
 
     return hashed_password.decode('utf-8')
 
-
+def validate_email(email):
+    return bool(re.match(r'^[\w\.-]+@[\w\.-]+$', email))
+ 
+def validate_username(username):
+    return username.isalnum()
+ 
+def validate_phoneno(phoneno):
+    return bool(re.match(r'^\d{10}$', phoneno))
+ 
+def validate_name(name):
+    return bool(re.match(r'^[a-zA-Z\s]+$', name))
+ 
 def manage_teachers():
     if request.method == 'POST':
         try:
             data = request.get_json()
-            password = data.get('password')
+ 
+            if not validate_email(data['email']):
+                return jsonify({'error': 'Invalid email format'})
 
-            # Hash the password
+            if not validate_username(data['username']):
+                return jsonify({'error': 'Invalid username.username contains only alphanumeric characters'})
+
+            if not validate_phoneno(data['phoneno']):
+                return jsonify({'error': 'Invalid phone number'})
+            
+            if 'password' not in data or not data['password'].strip():
+                 return jsonify({'error': 'Password is required and cannot be empty or contain only spaces'})
+             
+             
+            check_email_query = """
+            SELECT loginid FROM login WHERE email = %s;
+            """
+            cursor.execute(check_email_query, (data['email'],))
+            existing_login_id = cursor.fetchone()
+ 
+            if existing_login_id:
+                return jsonify({'error': 'teacher already exists.'})
+
+ 
+            password = data.get('password')
             hashed_password = encrypt_password(password)
-            print("___________________",hashed_password)
-            # Insert into login table
+ 
             login_insert_query = """
-            INSERT INTO login (password, username, type)
-            VALUES (%(password)s, %(username)s, %(type)s)
+            INSERT INTO login (password, username, type, email)
+            VALUES (%(password)s, %(username)s, %(type)s, %(email)s)
             RETURNING loginId
             """
             cursor.execute(login_insert_query, {
                 'password': hashed_password,
                 'username': data['username'],
-                'type': 'teacher'  # Assuming type should be 'teacher' for teacher login
+                'email': data['email'],
+                'type': 'teacher'
             })
-            login_id = cursor.fetchone()[0]  # Get the last insert ID from login table
-            print("__________****_________")
-
-            # Insert into teacher table
+            login_id = cursor.fetchone()[0]  
+ 
             teacher_insert_query = """
-            INSERT INTO teacher (, name, department, email, phoneNo)
-            VALUES (%(loginloginIdId)s, %(name)s, %(department)s, %(email)s, %(phoneNo)s)
+            INSERT INTO teacher (loginid, name, department, phoneno)
+            VALUES (%(loginid)s, %(name)s, %(department)s, %(phoneno)s)
             """
             cursor.execute(teacher_insert_query, {
-                'loginId': login_id,
+                'loginid': login_id,
                 'name': data['name'],
                 'department': data['department'],
-                'email': data['email'],
-                'phoneNo': data['phoneNo'],
+                'phoneno': data['phoneno'],
             })
-
-            # Commit changes and close connection
             connection.commit()
-
+ 
             return jsonify({'message': 'Teacher added successfully!'})
         except Exception as e:
             return jsonify({'error': str(e)})
-
+ 
     elif request.method == 'GET':
-        # Retrieve all teachers (you need to implement the query accordingly)
         try:
             select_all_teachers_query = """
-            SELECT * FROM teacher
+            SELECT name, department, phoneno FROM teacher
             """
             cursor.execute(select_all_teachers_query)
             teachers = cursor.fetchall()
-            # cursor.close()
-            # connection.close()
-
+ 
             return jsonify({'teachers': teachers})
-
+ 
         except Exception as e:
             return jsonify({'error': str(e)})
