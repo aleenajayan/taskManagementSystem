@@ -3,5 +3,4 @@ db_params={
     'user':'postgres',
     'password':'root',
     'database':'taskManagement',
-
 }
